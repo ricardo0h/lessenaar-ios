@@ -18,7 +18,7 @@ Besluit en criteria: issue #129 en ADR-5a in de (privé) repo `piano-practice-tr
 
 Er is geen Mac nodig. `.github/workflows/ios.yml`:
 
-1. `polyfill` (Linux): `node --test tests/`, tegen het MIDI-blok van de gepubliceerde site.
+1. `polyfill` (Linux): `node --test tests/*.test.mjs`, tegen het MIDI-blok van de gepubliceerde site.
 2. `build` (macOS): `xcodegen generate` en een simulatorbuild zonder ondertekenen. Draait bij elke PR.
 3. `testflight` (macOS, alleen op `main` en met de hand): registreert de bundle-id, archiveert met automatisch
    ondertekenen via de App Store Connect API-sleutel en uploadt naar TestFlight.
@@ -27,4 +27,4 @@ Secrets: `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`. Optioneel de variabele `AP
 App Store Connect (`seedId` van de bundle-id).
 
 Lokaal testen van de polyfill tegen een eigen kopie van de pagina:
-`LESSENAAR_HTML=../piano-practice-tracker/piano_practice/web/lessenaar.html node --test tests/`
+`LESSENAAR_HTML=../piano-practice-tracker/piano_practice/web/lessenaar.html node --test tests/*.test.mjs`
