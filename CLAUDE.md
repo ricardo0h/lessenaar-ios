@@ -1,0 +1,10 @@
+# lessenaar-ios
+
+iOS-schil om Lessenaar (WKWebView + CoreMIDI). Proef voor `ricardo0h/piano-practice-tracker#129`; de regels en de
+werkwijze staan in de `CLAUDE.md` van die repo en gelden hier ook (Nederlands, branch + PR, zelf mergen bij groene CI).
+
+- **Deze repo is publiek.** Geen persoonlijke data: geen stuktitels, lesdata, cursusnamen, tokens of sleutels.
+- `lessenaar.html` wordt hier nooit gewijzigd of gekopieerd; de schil laadt de gepubliceerde site.
+- De MIDI-polyfill houdt zich aan wat het blok `midiIn` (`MIDI-IN-BEGIN/END`) gebruikt; `tests/polyfill.test.mjs`
+  draait dat blok van de live site tegen de polyfill. Verandert `midiIn`, dan faalt deze test in de CI hier.
+- Swift kun je in de cloud-sandbox niet bouwen: de CI (`build`) is de compiler. Een merge naar `main` gaat naar TestFlight.
