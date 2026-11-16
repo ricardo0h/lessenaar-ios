@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: ios-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}   # een upload naar TestFlight niet afbreken
 
 env:
   BUNDLE_ID: io.github.ricardo0h.lessenaar
@@ -65,7 +65,7 @@ jobs:
         run: >
           xcodebuild -project Lessenaar.xcodeproj -scheme Lessenaar -configuration Release
           -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Lessenaar.xcarchive"
-          DEVELOPMENT_TEAM=${{ steps.team.outputs.team }} CURRENT_PROJECT_VERSION=${{ github.run_number }}
+          DEVELOPMENT_TEAM=${{ steps.team.outputs.team }} CURRENT_PROJECT_VERSION=${{ github.run_number }}.${{ github.run_attempt }}
           -allowProvisioningUpdates
           -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
           -quiet archive
@@ -88,7 +88,7 @@ jobs:
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
-          echo "Build ${{ github.run_number }} staat in App Store Connect; TestFlight verwerkt hem in 5–15 minuten." >> "$GITHUB_STEP_SUMMARY"
+          echo "Build ${{ github.run_number }}.${{ github.run_attempt }} staat in App Store Connect; TestFlight verwerkt hem in 5–15 minuten." >> "$GITHUB_STEP_SUMMARY"
       - name: Sleutel weg
         if: always()
         run: rm -f "$ASC_KEY_PATH"

@@ -14,6 +14,15 @@ Besluit en criteria: issue #129 en ADR-5a in de (privé) repo `piano-practice-tr
   het MIDI-pakket in iOS tot de app de noot heeft verwerkt (mediaan, p95, max) en hoeveel pakketten er gemist zijn.
 - Geen service worker en geen offline start (bonus, geen eis). Zonder wifi zie je "Lessenaar laadt niet" en een knop Opnieuw.
 
+## Tijdens de proef: niet naar de data-repo schrijven
+
+Na een herstel van sync heeft de schil dezelfde `libraryId` als MIDIWeb Browser. Schrijven ze allebei, dan overschrijven ze
+elkaars `backup/lessenaar.json` zonder waarschuwing (ADR-5a). Daarom tijdens de proef:
+
+- in de schil een fine-grained token met alleen **Contents: Read-only** op de data-repo: herstel werkt, schrijven niet
+  (dat staat dan rood bij Sync, en dat is goed zo);
+- in de schil geen sessie afronden (anders komt hij in `sessies/` en schrijft de coach er een plan op).
+
 ## Bouwen
 
 Er is geen Mac nodig. `.github/workflows/ios.yml`:
@@ -22,6 +31,10 @@ Er is geen Mac nodig. `.github/workflows/ios.yml`:
 2. `build` (macOS): `xcodegen generate` en een simulatorbuild zonder ondertekenen. Draait bij elke PR.
 3. `testflight` (macOS, alleen op `main` en met de hand): registreert de bundle-id, archiveert met automatisch
    ondertekenen via de App Store Connect API-sleutel en uploadt naar TestFlight.
+
+De API-sleutel moet de rol **Admin** hebben: archiveren maakt op een schone runner zelf certificaten aan, en de export
+gebruikt een door Apple beheerd distributiecertificaat. Alleen iPad (`TARGETED_DEVICE_FAMILY` 2): op de iPhone zou de
+polyfill de alleen-lezen-guard van Lessenaar omzeilen.
 
 Secrets: `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`. Optioneel de variabele `APPLE_TEAM_ID`; zonder die komt de team-id uit
 App Store Connect (`seedId` van de bundle-id).

@@ -1,18 +1,20 @@
 import Foundation
 import SwiftUI
 
-/// Meting voor criterium (a): van pakket in CoreMIDI tot de app het bericht heeft verwerkt, en gemiste pakketten.
-/// De polyfill stuurt per pakket een ack terug nadat de luisteraars van de app gedraaid hebben.
+/// Meting voor criterium (a): van het MIDI-pakket in iOS (tijdstempel van CoreMIDI) tot de app de noot heeft verwerkt.
+/// De polyfill stuurt per pakket een ack terug nadat de luisteraars van de app gedraaid hebben. Alleen pakketten met een
+/// aanslag tellen mee; active sensing (0xFE, ±3 per seconde van de ES520) niet.
 final class Meting: ObservableObject {
     static let shared = Meting()
 
-    @Published private(set) var latencies: [Double] = []   // ms, alleen pakketten met een aanslag
-    @Published private(set) var notes = 0
-    @Published private(set) var packets = 0
-    @Published private(set) var missed = 0
+    @Published private(set) var latencies: [Double] = []   // ms, per pakket met een aanslag
+    @Published private(set) var notesIOS = 0                // aanslagen die CoreMIDI binnenkreeg (na het laden van de pagina)
+    @Published private(set) var notesApp = 0                // aanslagen die de app volgens de polyfill kreeg
+    @Published private(set) var late = 0                    // aanslagen zonder antwoord binnen 2 s
     @Published var sources: [MIDISource] = []
     private(set) var since = Date()
-    private var pending: [Int: UInt64] = [:]
+    private var pending: [Int: (hostTime: UInt64, notes: Int)] = [:]
+    private var running: [Int32: UInt8] = [:]
 
     private static let timebase: mach_timebase_info_data_t = {
         var info = mach_timebase_info_data_t()
@@ -29,34 +31,71 @@ final class Meting: ObservableObject {
         return now > hostTime ? milliseconds(now - hostTime) : 0
     }
 
-    func sent(seq: Int, hostTime: UInt64) {
-        pending[seq] = hostTime
-        packets += 1
+    private static func length(_ status: UInt8) -> Int {
+        let high = status & 0xF0
+        if high == 0xC0 || high == 0xD0 { return 2 }
+        if status < 0xF0 { return 3 }
+        if status == 0xF1 || status == 0xF3 { return 2 }
+        if status == 0xF2 { return 3 }
+        return 1
+    }
+
+    /// Aantal note-ons (velocity > 0) in een pakket; zelfde regels als splitMidi in de polyfill.
+    static func noteOns(_ bytes: [UInt8], running: inout UInt8) -> Int {
+        var count = 0, i = 0
+        while i < bytes.count {
+            let b = bytes[i]
+            if b >= 0xF8 { i += 1; continue }
+            if b == 0xF0 {
+                while i < bytes.count && bytes[i] != 0xF7 { i += 1 }
+                i += 1; running = 0; continue
+            }
+            let status: UInt8
+            var j: Int
+            if b >= 0x80 { status = b; j = i + 1; running = b < 0xF0 ? b : 0 }
+            else if running != 0 { status = running; j = i }
+            else { i += 1; continue }
+            let need = length(status) - 1
+            var data: [UInt8] = []
+            while data.count < need && j < bytes.count && bytes[j] < 0x80 { data.append(bytes[j]); j += 1 }
+            if data.count == need && status & 0xF0 == 0x90 && data[1] > 0 { count += 1 }
+            i = j
+        }
+        return count
+    }
+
+    func sent(seq: Int, source: Int32, bytes: [UInt8], hostTime: UInt64) {
+        var state = running[source] ?? 0
+        let count = Self.noteOns(bytes, running: &state)
+        running[source] = state
+        if count > 0 {
+            notesIOS += count
+            pending[seq] = (hostTime, count)
+        }
         expire()
     }
 
     func ack(seq: Int, notes count: Int) {
-        guard let hostTime = pending.removeValue(forKey: seq) else { return }
-        notes += count
-        if count > 0 {
-            latencies.append(Self.ageMs(hostTime))
-            if latencies.count > 20_000 { latencies.removeFirst(latencies.count - 20_000) }
-        }
+        notesApp += count
+        guard let entry = pending.removeValue(forKey: seq) else { return }
+        latencies.append(Self.ageMs(entry.hostTime))
+        if latencies.count > 20_000 { latencies.removeFirst(latencies.count - 20_000) }
     }
 
-    /// Pakketten zonder ack na 2 seconden tellen als gemist.
+    /// Aanslagen zonder ack na 2 seconden tellen als te laat (of kwijt).
     func expire() {
-        let limit = mach_absolute_time()
-        let old = pending.filter { Self.milliseconds(limit > $0.value ? limit - $0.value : 0) > 2000 }
+        let now = mach_absolute_time()
+        let old = pending.filter { Self.milliseconds(now > $0.value.hostTime ? now - $0.value.hostTime : 0) > 2000 }
+        guard !old.isEmpty else { return }
         for key in old.keys { pending.removeValue(forKey: key) }
-        missed += old.count
+        late += old.values.reduce(0) { $0 + $1.notes }
     }
 
     /// De pagina is opnieuw geladen: openstaande pakketten komen nooit meer terug en tellen niet mee.
-    func pageReloaded() { pending.removeAll() }
+    func pageReloaded() { pending.removeAll(); running.removeAll() }
 
     func reset() {
-        latencies = []; notes = 0; packets = 0; missed = 0; pending = [:]; since = Date()
+        latencies = []; notesIOS = 0; notesApp = 0; late = 0; pending = [:]; since = Date()
     }
 
     func percentile(_ p: Double) -> Double? {
@@ -73,8 +112,9 @@ final class Meting: ObservableObject {
         return """
         Lessenaar iOS-schil \(version) (\(build))
         Meting sinds \(minutes) min
-        Aanslagen in de app: \(notes)
-        Pakketten: \(packets), gemist: \(missed)
+        Aanslagen in iOS: \(notesIOS)
+        Aanslagen in de app: \(notesApp)
+        Te laat of kwijt (> 2 s): \(late)
         Vertraging mediaan: \(ms(percentile(0.5)))
         Vertraging p95: \(ms(percentile(0.95)))
         Vertraging max: \(ms(latencies.max()))
@@ -99,7 +139,7 @@ struct MetingView: View {
                     .padding()
                     .textSelection(.enabled)
                     .id(tick)
-                Text("Criterium (a): mediaan onder 20 ms en 0 gemist na 5 minuten spelen. Gemeten van het MIDI-pakket in iOS tot de app de noot heeft verwerkt.")
+                Text("Criterium (a): mediaan onder 20 ms na 5 minuten spelen, aanslagen in iOS en in de app gelijk en 0 te laat. Gemeten van het MIDI-pakket in iOS tot de app de noot heeft verwerkt, inclusief de terugmelding; het tekenen op het scherm (tot ±16 ms) zit er niet in.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal)

@@ -101,3 +101,12 @@ test('geen antwoord van native: toegang zonder bronnen', async () => {
   assert.equal(access.inputs.size, 0);
   assert.equal(access.sysexEnabled, false);
 });
+
+test('twee requestMIDIAccess tegelijk: allebei afgehandeld', async () => {
+  const { ctx, api } = sandbox();
+  const a = ctx.navigator.requestMIDIAccess(), b = ctx.navigator.requestMIDIAccess();
+  api.ports([{ id: 1, name: 'Kawai ES520' }]);
+  const [x, y] = await Promise.all([a, b]);
+  assert.equal(x, y);
+  assert.equal(x.inputs.size, 1);
+});

@@ -67,7 +67,7 @@
     access.dispatchEvent(ev);
   }
 
-  let ready = null;   // resolve van een lopende requestMIDIAccess
+  const waiting = [];   // resolves van lopende requestMIDIAccess-aanroepen
   const api = {
     // Native → JS: de huidige bronnen. Bestaande poorten houden hun object (en dus hun onmidimessage).
     ports(list) {
@@ -79,7 +79,7 @@
       for (const [id, port] of [...access.inputs]) {
         if (!seen.has(id)) { access.inputs.delete(id); running.delete(id); port.state = 'disconnected'; port.connection = 'closed'; changed.push(port); }
       }
-      if (ready) { const r = ready; ready = null; r(access); }
+      for (const r of waiting.splice(0)) r(access);
       for (const port of changed) stateChange(port);
     },
     // Native → JS: één CoreMIDI-pakket van een bron. Altijd een ack terug (ook zonder poort), zodat de meting klopt.
@@ -107,10 +107,10 @@
 
   nav.requestMIDIAccess = function () {
     return new Promise(resolve => {
-      ready = resolve;
+      waiting.push(resolve);
       post({ type: 'request' });
       // Geen antwoord van native: toch toegang, zonder bronnen (de app toont dan "geen piano").
-      setTimeout(() => { if (ready === resolve) { ready = null; resolve(access); } }, 1500);
+      setTimeout(() => { const i = waiting.indexOf(resolve); if (i >= 0) { waiting.splice(i, 1); resolve(access); } }, 1500);
     });
   };
 })(typeof window !== 'undefined' ? window : globalThis);

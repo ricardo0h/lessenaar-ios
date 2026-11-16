@@ -57,7 +57,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         bridge.onPacket = { [weak self] id, bytes, hostTime in
             guard let self, self.pageWantsMidi else { return }
             self.seq += 1
-            Meting.shared.sent(seq: self.seq, hostTime: hostTime)
+            Meting.shared.sent(seq: self.seq, source: id, bytes: bytes, hostTime: hostTime)
             let age = String(format: "%.2f", Meting.ageMs(hostTime))
             self.call("packet", "\(id),[\(bytes.map(String.init).joined(separator: ","))],\(self.seq),\(age)")
         }
@@ -126,7 +126,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         if let url = action.request.url {
-            if url.host == Self.appHost || url.scheme == "blob" { webView.load(action.request) } else { UIApplication.shared.open(url) }
+            if url.host == Self.appHost { webView.load(action.request) } else if url.scheme == "http" || url.scheme == "https" { UIApplication.shared.open(url) }
+            // blob:/data: in een nieuw venster niet laden: dan is de app weg en kun je niet terug
         }
         return nil
     }
@@ -229,6 +230,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     func downloadDidFinish(_ download: WKDownload) {
         guard let url = downloadURLs.removeValue(forKey: ObjectIdentifier(download)) else { return }
         let share = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        share.completionWithItemsHandler = { _, _, _, _ in try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         share.popoverPresentationController?.sourceView = view
         share.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
         share.popoverPresentationController?.permittedArrowDirections = []
