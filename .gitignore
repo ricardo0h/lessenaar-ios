@@ -1,0 +1,6 @@
+Lessenaar.xcodeproj/
+Lessenaar/Info.plist
+build/
+*.p8
+.DS_Store
+__pycache__/

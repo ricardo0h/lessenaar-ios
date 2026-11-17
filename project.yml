@@ -1,0 +1,41 @@
+# XcodeGen: het Xcode-project wordt in de CI gemaakt (`xcodegen generate`), er staat geen .xcodeproj in de repo.
+name: Lessenaar
+options:
+  bundleIdPrefix: io.github.ricardo0h
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+targets:
+  Lessenaar:
+    type: application
+    platform: iOS
+    sources:
+      - path: Lessenaar
+    info:
+      path: Lessenaar/Info.plist
+      properties:
+        CFBundleDisplayName: Lessenaar
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        NSCameraUsageDescription: Voor een foto bij een melding of bij een les.
+        NSMicrophoneUsageDescription: Voor een video bij een melding of bij een les.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.ricardo0h.lessenaar
+        TARGETED_DEVICE_FAMILY: "2"   # alleen iPad: op de iPhone zou de polyfill de alleen-lezen-guard (#111) omzeilen
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: false

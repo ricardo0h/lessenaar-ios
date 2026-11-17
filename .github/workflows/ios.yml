@@ -1,0 +1,105 @@
+name: iOS
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}   # een upload naar TestFlight niet afbreken
+
+env:
+  BUNDLE_ID: io.github.ricardo0h.lessenaar
+
+jobs:
+  polyfill:
+    name: Polyfill tegen de gepubliceerde Lessenaar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test tests/*.test.mjs
+
+  build:
+    name: Bouwen (simulator, zonder ondertekenen)
+    needs: polyfill
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Nieuwste Xcode 26 (App Store Connect eist de iOS 26 SDK)
+        run: |
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1 || true)
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC"; else echo "::warning::Geen Xcode 26 op deze runner; de standaard-Xcode blijft"; fi
+          xcodebuild -version
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - run: >
+          xcodebuild -project Lessenaar.xcodeproj -scheme Lessenaar
+          -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet build
+
+  testflight:
+    name: Naar TestFlight
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: macos-15
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sleutel
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"; echo "ASC_KEY_PATH=$ASC_KEY_PATH" >> "$GITHUB_ENV"
+          test -n "$ASC_KEY_ID" && test -n "$ASC_ISSUER_ID" && test -n "$ASC_KEY_P8" || { echo "::error::Secrets ASC_KEY_ID, ASC_ISSUER_ID of ASC_KEY_P8 ontbreken"; exit 1; }
+          printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH"
+      - name: Bundle-id en team
+        id: team
+        run: |
+          TEAM="${{ vars.APPLE_TEAM_ID }}"
+          SEED=$(python3 ci/asc.py team "$BUNDLE_ID" Lessenaar)
+          echo "team=${TEAM:-$SEED}" >> "$GITHUB_OUTPUT"
+      - name: Nieuwste Xcode 26 (App Store Connect eist de iOS 26 SDK)
+        run: |
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1 || true)
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC"; else echo "::warning::Geen Xcode 26 op deze runner; de standaard-Xcode blijft"; fi
+          xcodebuild -version
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: Archief (automatisch ondertekenen met de API-sleutel)
+        run: >
+          xcodebuild -project Lessenaar.xcodeproj -scheme Lessenaar -configuration Release
+          -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Lessenaar.xcarchive"
+          DEVELOPMENT_TEAM=${{ steps.team.outputs.team }} CURRENT_PROJECT_VERSION=${{ github.run_number }}.${{ github.run_attempt }}
+          -allowProvisioningUpdates
+          -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          -quiet archive
+      - name: Bestaat de app in App Store Connect?
+        run: python3 ci/asc.py app "$BUNDLE_ID"
+      - name: Uploaden naar TestFlight
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${{ steps.team.outputs.team }}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Lessenaar.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          echo "Build ${{ github.run_number }}.${{ github.run_attempt }} staat in App Store Connect; TestFlight verwerkt hem in 5–15 minuten." >> "$GITHUB_STEP_SUMMARY"
+      - name: Sleutel weg
+        if: always()
+        run: rm -f "$ASC_KEY_PATH"
