@@ -21,6 +21,7 @@ elkaars `backup/lessenaar.json` zonder waarschuwing (ADR-5a). Daarom tijdens de 
 
 - in de schil een fine-grained token met alleen **Contents: Read-only** op de data-repo: herstel werkt, schrijven niet
   (dat staat dan rood bij Sync, en dat is goed zo);
+- Melden (de vlag) schrijft ook naar de data-repo en lukt in de schil dus niet; meld iets over de schil vanuit MIDIWeb Browser;
 - in de schil geen sessie afronden (anders komt hij in `sessies/` en schrijft de coach er een plan op).
 
 ## Bouwen

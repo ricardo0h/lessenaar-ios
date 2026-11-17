@@ -30,6 +30,11 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Nieuwste Xcode 26 (App Store Connect eist de iOS 26 SDK)
+        run: |
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1 || true)
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC"; else echo "::warning::Geen Xcode 26 op deze runner; de standaard-Xcode blijft"; fi
+          xcodebuild -version
       - run: brew install xcodegen
       - run: xcodegen generate
       - run: >
@@ -59,6 +64,11 @@ jobs:
           TEAM="${{ vars.APPLE_TEAM_ID }}"
           SEED=$(python3 ci/asc.py team "$BUNDLE_ID" Lessenaar)
           echo "team=${TEAM:-$SEED}" >> "$GITHUB_OUTPUT"
+      - name: Nieuwste Xcode 26 (App Store Connect eist de iOS 26 SDK)
+        run: |
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1 || true)
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC"; else echo "::warning::Geen Xcode 26 op deze runner; de standaard-Xcode blijft"; fi
+          xcodebuild -version
       - run: brew install xcodegen
       - run: xcodegen generate
       - name: Archief (automatisch ondertekenen met de API-sleutel)
@@ -81,6 +91,7 @@ jobs:
             <key>destination</key><string>upload</string>
             <key>teamID</key><string>${{ steps.team.outputs.team }}</string>
             <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
             <key>uploadSymbols</key><true/>
           </dict></plist>
           EOF

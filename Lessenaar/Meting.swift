@@ -77,7 +77,7 @@ final class Meting: ObservableObject {
 
     func ack(seq: Int, notes count: Int) {
         notesApp += count
-        guard let entry = pending.removeValue(forKey: seq) else { return }
+        guard let entry = pending.removeValue(forKey: seq), count > 0 else { return }
         latencies.append(Self.ageMs(entry.hostTime))
         if latencies.count > 20_000 { latencies.removeFirst(latencies.count - 20_000) }
     }
@@ -92,7 +92,11 @@ final class Meting: ObservableObject {
     }
 
     /// De pagina is opnieuw geladen: openstaande pakketten komen nooit meer terug en tellen niet mee.
-    func pageReloaded() { pending.removeAll(); running.removeAll() }
+    /// Hun aanslagen gaan ook van de iOS-telling af, anders lijkt een herlaad op een gemiste noot.
+    func pageReloaded() {
+        notesIOS -= pending.values.reduce(0) { $0 + $1.notes }
+        pending.removeAll(); running.removeAll()
+    }
 
     func reset() {
         latencies = []; notesIOS = 0; notesApp = 0; late = 0; pending = [:]; since = Date()
