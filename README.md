@@ -10,6 +10,8 @@ Besluit en criteria: issue #129 en ADR-5a in de (privé) repo `piano-practice-tr
 - `Lessenaar/Resources/midi-polyfill.js` geeft de pagina `navigator.requestMIDIAccess`. `MIDIBridge.swift` luistert
   met CoreMIDI naar alle bronnen en geeft de ruwe pakketten door; de polyfill splitst ze in losse berichten, zoals Web MIDI.
   `lessenaar.html` blijft ongewijzigd.
+- Is er een instrument aangesloten (USB of Bluetooth), dan geeft de brug alleen dat door. De netwerksessie van iOS en
+  virtuele poorten van andere apps (zoals `MIDIWeb Out`) alleen als er niets anders is.
 - Meetscherm voor criterium (a): **houd drie vingers ongeveer een seconde op het scherm**. Het toont de vertraging van
   het MIDI-pakket in iOS tot de app de noot heeft verwerkt (mediaan, p95, max) en hoeveel pakketten er gemist zijn.
 - Geen service worker en geen offline start (bonus, geen eis). Zonder wifi zie je "Lessenaar laadt niet" en een knop Opnieuw.

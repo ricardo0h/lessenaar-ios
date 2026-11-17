@@ -55,9 +55,15 @@ final class MIDIBridge {
         for endpoint in connected { MIDIPortDisconnectSource(inPort, endpoint) }
         connected = []
         var found: [MIDISource] = []
+        var endpoints: [MIDIEndpointRef] = []
         for index in 0..<MIDIGetNumberOfSources() {
             let endpoint = MIDIGetSource(index)
-            guard endpoint != 0 else { continue }
+            if endpoint != 0 { endpoints.append(endpoint) }
+        }
+        // Is er een echt instrument (USB of Bluetooth), dan alleen dat: de netwerksessie van iOS en de virtuele poorten
+        // van andere apps (zoals MIDIWeb Out) staan anders vooraan en de app noemt dan de verkeerde bron als piano.
+        let hardware = endpoints.filter(Self.isHardware)
+        for endpoint in hardware.isEmpty ? endpoints : hardware {
             var uid: Int32 = 0
             MIDIObjectGetIntegerProperty(endpoint, kMIDIPropertyUniqueID, &uid)
             let name = Self.string(endpoint, kMIDIPropertyDisplayName) ?? Self.string(endpoint, kMIDIPropertyName) ?? "MIDI"
@@ -70,6 +76,17 @@ final class MIDIBridge {
         }
         sources = found
         onSources?(found)
+    }
+
+    /// Een bron van een aangesloten apparaat: hoort bij een entity (virtuele poorten van apps niet) en komt niet van de
+    /// netwerkdriver van iOS.
+    private static func isHardware(_ endpoint: MIDIEndpointRef) -> Bool {
+        var entity = MIDIEntityRef()
+        guard MIDIEndpointGetEntity(endpoint, &entity) == noErr, entity != 0 else { return false }
+        var device = MIDIDeviceRef()
+        guard MIDIEntityGetDevice(entity, &device) == noErr, device != 0 else { return false }
+        let driver = string(device, kMIDIPropertyDriverOwner) ?? ""
+        return !driver.localizedCaseInsensitiveContains("RTP")
     }
 
     private static func string(_ object: MIDIObjectRef, _ property: CFString) -> String? {
