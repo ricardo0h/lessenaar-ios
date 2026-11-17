@@ -86,7 +86,7 @@ final class MIDIBridge {
         var device = MIDIDeviceRef()
         guard MIDIEntityGetDevice(entity, &device) == noErr, device != 0 else { return false }
         let driver = string(device, kMIDIPropertyDriverOwner) ?? ""
-        if driver.localizedCaseInsensitiveContains("RTP") { return false }
+        if driver.contains("RTP") { return false }   // com.apple.AppleMIDIRTPDriver
         // Vangnet als de driver anders heet: het apparaat van de netwerksessie heet "Network" (vertaald: "Netwerk").
         let deviceName = (string(device, kMIDIPropertyName) ?? "").lowercased()
         return !(deviceName == "network" || deviceName == "netwerk")
