@@ -88,3 +88,15 @@ test('live site: wat al op Lessenaar-iOS/ en het apparaat leunt, blijft werken',
     assert.equal(ctx.appleMobile({ ua, touch: 5 }), true, 'nog steeds een Apple-toestel: ' + ua);
   }
 });
+
+// De webkant (#127): deviceRole in de live site maakt van de iPhone-schil een toevoeger (alleen sessies en meldingen).
+// Rood zolang de site die rol nog niet heeft: dan mag deze schil met iPhone-doel niet naar TestFlight.
+test('live site: iPhone-schil is toevoeger, iPad-schil blijft schrijver (deviceRole)', async () => {
+  const src = await pageSource();
+  const ctx = {};
+  vm.createContext(ctx);
+  vm.runInContext(fn(src, 'deviceRole') + '\nglobalThis.deviceRole = deviceRole;', ctx);
+  assert.equal(ctx.deviceRole({ ua: UA.phone(swiftMark('phone', '0.1')) }), 'toevoeger');
+  assert.equal(ctx.deviceRole({ ua: UA.pad(swiftMark('pad', '0.1')) }), 'schrijver');
+  assert.equal(ctx.deviceRole({ ua: UA.pad('Lessenaar-iOS/0.1') }), 'schrijver', 'oude iPad-build zonder apparaat');
+});

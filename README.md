@@ -30,8 +30,8 @@ Tot het omzetten na 1 dec (#183) staat in de app nog het lees-token, dus Sync, M
 - **Kenmerk in de user agent:** de schil zet `Lessenaar-iOS/<versie> (iPhone)` of `Lessenaar-iOS/<versie> (iPad)` achter
   de user agent (`WebViewController.userAgentMark`, versie = `CFBundleShortVersionString`). Op de iPad is de rest van de
   UA die van desktop-Safari ("Macintosh"), dus het apparaat staat er expliciet in. De webapp leest dit kenmerk om de
-  iPhone als tweede apparaat te behandelen; `tests/useragent.test.mjs` bewaakt het formaat en draait de UA-functies van
-  de live site ertegen. Niet veranderen zonder de webkant.
+  iPhone als tweede apparaat te behandelen (`deviceRole` → `toevoeger`); `tests/useragent.test.mjs` bewaakt het formaat
+  en draait `writerLabel`, `appleMobile` en `deviceRole` van de live site ertegen. Zonder die rol op de site is de CI rood. Niet veranderen zonder de webkant.
 - **iPhone-scherm:** staand en liggend (niet ondersteboven). Boven en onder loopt de pagina door tot de rand en regelt
   ze de safe area zelf (`viewport-fit=cover`); links en rechts houdt de schil de safe area vrij, zodat de notch of het
   Dynamic Island in liggende stand niet over de pagina valt. Het meetscherm (drie vingers) werkt ook op de iPhone.
