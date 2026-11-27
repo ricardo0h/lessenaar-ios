@@ -63,7 +63,9 @@ final class MIDIBridge {
     @discardableResult
     func send(to id: Int32, bytes: [UInt8], delayMs: Double) -> Bool {
         guard outPort != 0, let destination = destinationRefs[id], !bytes.isEmpty, bytes.count <= 65_000 else { return false }
-        let stamp: MIDITimeStamp = delayMs > 0 ? mach_absolute_time() + Self.ticks(milliseconds: delayMs) : 0
+        // Begrensd op 10 minuten: een rare waarde van de pagina mag nooit een overloop (crash) geven.
+        let delay = delayMs.isFinite ? min(max(delayMs, 0), 600_000) : 0
+        let stamp: MIDITimeStamp = delay > 0 ? mach_absolute_time() + Self.ticks(milliseconds: delay) : 0
         let size = MemoryLayout<MIDIPacketList>.size + bytes.count
         let buffer = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: MemoryLayout<MIDIPacketList>.alignment)
         defer { buffer.deallocate() }
@@ -88,7 +90,8 @@ final class MIDIBridge {
         guard outPort != 0, sentAny else { return }
         for (id, destination) in destinationRefs {
             MIDIFlushOutput(destination)
-            for channel: UInt8 in 0..<16 { send(to: id, bytes: [0xB0 | channel, 123, 0], delayMs: 0) }   // All Notes Off
+            // Eerst het pedaal los (CC64), anders laat All Notes Off (CC123) de vastgehouden noten doorklinken.
+            for channel: UInt8 in 0..<16 { send(to: id, bytes: [0xB0 | channel, 64, 0, 0xB0 | channel, 123, 0], delayMs: 0) }
         }
         sentAny = false
     }

@@ -162,6 +162,7 @@ struct MetingView: View {
                     .padding(.horizontal)
                 Button("Testnoot naar de bestemmingen", action: testNote)
                     .buttonStyle(.bordered)
+                    .controlSize(.large)
                     .disabled(meting.destinations.isEmpty)
                     .padding()
                 Text("Speelt de middelste C kort op elke bestemming (MIDI-uit). Hoor je hem op de piano, dan werkt MIDI-uit.")

@@ -145,6 +145,8 @@ test('send: ongeldige data geeft de fouten uit de spec en verstuurt niets', asyn
   assert.throws(() => out.send([256]), typeError);
   assert.throws(() => out.send(null), typeError);
   assert.throws(() => out.send([0xf0, 1, 2, 0xf7]), e => e.name === 'InvalidAccessError', 'sysex staat uit');
+  assert.throws(() => out.send([0x90, 60, 100], Infinity), typeError, 'timestamp moet eindig zijn');
+  assert.throws(() => out.send([0x90, 60, 100], NaN), typeError);
   eq(s.sends(), []);
 });
 

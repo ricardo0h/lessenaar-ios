@@ -98,9 +98,10 @@
     // timestamp in de tijd van performance.now(); leeg, 0 of voorbij = meteen. Native plant het met CoreMIDI in.
     port.send = (data, timestamp) => {
       if (port.state === 'disconnected') throw error('InvalidStateError', 'poort is losgekoppeld');
+      const ts = timestamp === undefined ? 0 : Number(timestamp);
+      if (!Number.isFinite(ts)) throw new TypeError('send: timestamp ' + timestamp + ' is geen eindig getal');
       const bytes = checkSend(data);
       if (!bytes.length) return;
-      const ts = Number(timestamp) || 0;
       const delay = ts > 0 ? Math.max(0, ts - now()) : 0;
       post({ type: 'send', id: port.id, data: bytes, delay });
     };
