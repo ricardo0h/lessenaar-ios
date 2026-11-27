@@ -12,6 +12,9 @@ final class Meting: ObservableObject {
     @Published private(set) var notesApp = 0                // aanslagen die de app volgens de polyfill kreeg
     @Published private(set) var late = 0                    // aanslagen zonder antwoord binnen 2 s
     @Published var sources: [MIDISource] = []
+    @Published var destinations: [MIDISource] = []           // MIDI-uit: waar de app naartoe kan sturen
+    @Published private(set) var sentOK = 0                  // berichten naar een bestemming die CoreMIDI aannam
+    @Published private(set) var sentFailed = 0              // en die niet aankwamen bij CoreMIDI (onbekende bestemming, fout)
     @Published var screenOn = false                         // de pagina houdt een wake lock vast (scherm blijft aan)
     private(set) var since = Date()
     private var pending: [Int: (hostTime: UInt64, notes: Int)] = [:]
@@ -99,8 +102,13 @@ final class Meting: ObservableObject {
         pending.removeAll(); running.removeAll()
     }
 
+    func sentOut(ok: Bool) {
+        if ok { sentOK += 1 } else { sentFailed += 1 }
+    }
+
     func reset() {
         latencies = []; notesIOS = 0; notesApp = 0; late = 0; pending = [:]; since = Date()
+        sentOK = 0; sentFailed = 0
     }
 
     func percentile(_ p: Double) -> Double? {
@@ -124,6 +132,8 @@ final class Meting: ObservableObject {
         Vertraging p95: \(ms(percentile(0.95)))
         Vertraging max: \(ms(latencies.max()))
         Bronnen: \(sources.isEmpty ? "geen" : sources.map(\.name).joined(separator: ", "))
+        Bestemmingen: \(destinations.isEmpty ? "geen" : destinations.map(\.name).joined(separator: ", "))
+        Naar bestemming gestuurd: \(sentOK)\(sentFailed > 0 ? " (mislukt: \(sentFailed))" : "")
         Scherm blijft aan: \(screenOn ? "ja" : "nee")
         """
     }
@@ -133,6 +143,7 @@ final class Meting: ObservableObject {
 struct MetingView: View {
     @ObservedObject var meting = Meting.shared
     var close: () -> Void
+    var testNote: () -> Void = {}
     @State private var tick = 0
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -146,6 +157,15 @@ struct MetingView: View {
                     .textSelection(.enabled)
                     .id(tick)
                 Text("Criterium (a): mediaan onder 20 ms na 5 minuten spelen, aanslagen in iOS en in de app gelijk en 0 te laat. Gemeten van het MIDI-pakket in iOS tot de app de noot heeft verwerkt, inclusief de terugmelding; het tekenen op het scherm (tot ±16 ms) zit er niet in.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+                Button("Testnoot naar de bestemmingen", action: testNote)
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(meting.destinations.isEmpty)
+                    .padding()
+                Text("Speelt de middelste C kort op elke bestemming (MIDI-uit). Hoor je hem op de piano, dan werkt MIDI-uit.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal)

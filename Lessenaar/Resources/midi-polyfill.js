@@ -1,7 +1,8 @@
 /* Web MIDI-polyfill voor Lessenaar in de iOS-schil (proef, piano-practice-tracker#129).
    De pagina ziet gewoon navigator.requestMIDIAccess; de native kant (MIDIBridge.swift via WebViewController.swift)
-   roept window.__lessenaarMidi.ports(lijst) en .packet(bronId, bytes, seq, leeftijdMs) aan.
-   Berichten naar native: { type: 'request' } en { type: 'ack', seq, notes }. */
+   roept window.__lessenaarMidi.ports(bronnen, bestemmingen) en .packet(bronId, bytes, seq, leeftijdMs) aan.
+   Berichten naar native: { type: 'request' }, { type: 'ack', seq, notes },
+   { type: 'send', id, data: [bytes], delay: ms } (MIDI-uit; delay 0 = meteen) en { type: 'clear', id }. */
 (function (root) {
   'use strict';
   const nav = root.navigator;
@@ -59,6 +60,56 @@
     port.close = () => Promise.resolve(port);
     return port;
   }
+  // Web MIDI-spec, MIDIOutput.send: één of meer volledige berichten, geen running status; sysex alleen met sysexEnabled.
+  function error(name, message) {
+    if (typeof root.DOMException === 'function') return new root.DOMException(message, name);
+    const e = new Error(message); e.name = name; return e;
+  }
+  function checkSend(data) {
+    if (data == null || typeof data[Symbol.iterator] !== 'function') throw new TypeError('send: data is geen reeks bytes');
+    const bytes = [];
+    for (const v of data) {
+      const b = Number(v);
+      if (!Number.isInteger(b) || b < 0 || b > 255) throw new TypeError('send: ' + v + ' is geen byte');
+      bytes.push(b);
+    }
+    let i = 0;
+    while (i < bytes.length) {
+      const b = bytes[i];
+      if (b === 0xf0) throw error('InvalidAccessError', 'send: sysex staat uit');
+      if (b < 0x80 || b === 0xf7) throw new TypeError('send: databyte zonder status op positie ' + i);
+      const n = msgLen(b);
+      for (let k = 1; k < n; k++) {
+        if (i + k >= bytes.length || bytes[i + k] >= 0x80) throw new TypeError('send: onvolledig bericht op positie ' + i);
+      }
+      i += n;
+    }
+    return bytes;
+  }
+  function makeOutput(p) {
+    const port = new EventTarget();
+    Object.assign(port, {
+      id: String(p.id), name: p.name || '', manufacturer: p.manufacturer || '', version: '',
+      type: 'output', state: 'connected', connection: 'open', onstatechange: null,
+    });
+    port.open = () => (port.state === 'disconnected'
+      ? Promise.reject(error('InvalidAccessError', 'poort is losgekoppeld')) : Promise.resolve(port));
+    port.close = () => Promise.resolve(port);
+    // timestamp in de tijd van performance.now(); leeg, 0 of voorbij = meteen. Native plant het met CoreMIDI in.
+    port.send = (data, timestamp) => {
+      if (port.state === 'disconnected') throw error('InvalidStateError', 'poort is losgekoppeld');
+      const ts = timestamp === undefined ? 0 : Number(timestamp);
+      if (!Number.isFinite(ts)) throw new TypeError('send: timestamp ' + timestamp + ' is geen eindig getal');
+      const bytes = checkSend(data);
+      if (!bytes.length) return;
+      const delay = ts > 0 ? Math.max(0, ts - now()) : 0;
+      post({ type: 'send', id: port.id, data: bytes, delay });
+    };
+    port.clear = () => { post({ type: 'clear', id: port.id }); };
+    return port;
+  }
+  const outputsSeen = new Map();   // bestemming-id → poort: komt een bestemming terug, dan hetzelfde object (spec)
+
   function stateChange(port) {
     const ev = new Event('statechange');
     Object.defineProperty(ev, 'port', { value: port });
@@ -69,8 +120,9 @@
 
   const waiting = [];   // resolves van lopende requestMIDIAccess-aanroepen
   const api = {
-    // Native → JS: de huidige bronnen. Bestaande poorten houden hun object (en dus hun onmidimessage).
-    ports(list) {
+    // Native → JS: de huidige bronnen en bestemmingen. Bestaande poorten houden hun object (en dus hun onmidimessage).
+    // Zonder tweede argument blijven de bestemmingen zoals ze zijn.
+    ports(list, outList) {
       const seen = new Set(), changed = [];
       for (const p of list || []) {
         const id = String(p.id); seen.add(id);
@@ -78,6 +130,20 @@
       }
       for (const [id, port] of [...access.inputs]) {
         if (!seen.has(id)) { access.inputs.delete(id); running.delete(id); port.state = 'disconnected'; port.connection = 'closed'; changed.push(port); }
+      }
+      if (Array.isArray(outList)) {
+        const outSeen = new Set();
+        for (const p of outList) {
+          const id = String(p.id); outSeen.add(id);
+          if (access.outputs.has(id)) continue;
+          let port = outputsSeen.get(id);
+          if (port) { port.state = 'connected'; port.connection = 'open'; }
+          else { port = makeOutput(p); outputsSeen.set(id, port); }
+          access.outputs.set(id, port); changed.push(port);
+        }
+        for (const [id, port] of [...access.outputs]) {
+          if (!outSeen.has(id)) { access.outputs.delete(id); port.state = 'disconnected'; port.connection = 'closed'; changed.push(port); }
+        }
       }
       for (const r of waiting.splice(0)) r(access);
       for (const port of changed) stateChange(port);

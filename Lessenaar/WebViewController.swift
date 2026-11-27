@@ -61,9 +61,10 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        bridge.onSources = { [weak self] sources in
+        bridge.onSources = { [weak self] sources, destinations in
             Meting.shared.sources = sources
-            self?.call("ports", Self.json(sources))
+            Meting.shared.destinations = destinations
+            self?.call("ports", Self.json(sources) + "," + Self.json(destinations))
         }
         bridge.onPacket = { [weak self] id, bytes, hostTime in
             guard let self, self.pageWantsMidi else { return }
@@ -81,6 +82,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
     @objc private func didEnterBackground() {
         wakeLocks = []
+        bridge.stopAll()   // niets blijft doorspelen op de piano als de app weg is
     }
 
     private func call(_ function: String, _ arguments: String) {
@@ -102,6 +104,14 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             bridge.start()
         case "ack":
             if let seq = body["seq"] as? Int { Meting.shared.ack(seq: seq, notes: body["notes"] as? Int ?? 0) }
+        case "send":
+            guard pageWantsMidi, let id = (body["id"] as? String).flatMap({ Int32($0) }),
+                  let data = body["data"] as? [NSNumber] else { return }
+            let bytes = data.map { UInt8(truncatingIfNeeded: $0.intValue) }
+            let delay = (body["delay"] as? NSNumber)?.doubleValue ?? 0
+            Meting.shared.sentOut(ok: bridge.send(to: id, bytes: bytes, delayMs: delay))
+        case "clear":
+            if let id = (body["id"] as? String).flatMap({ Int32($0) }) { bridge.clear(id) }
         default:
             break
         }
@@ -111,8 +121,20 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
     @objc private func openMeting(_ gesture: UILongPressGestureRecognizer) {
         guard gesture.state == .began, presentedViewController == nil else { return }
-        let host = UIHostingController(rootView: MetingView(close: { [weak self] in self?.dismiss(animated: true) }))
+        let view = MetingView(close: { [weak self] in self?.dismiss(animated: true) },
+                              testNote: { [weak self] in self?.testNote() })
+        let host = UIHostingController(rootView: view)
         present(host, animated: true)
+    }
+
+    /// Meetscherm → "Testnoot": middelste C kort naar elke bestemming, de noot-uit via een tijdstempel 400 ms later.
+    /// Zo is MIDI-uit te controleren zonder dat de webapp `outputs` gebruikt.
+    private func testNote() {
+        for destination in bridge.destinations {
+            let on = bridge.send(to: destination.id, bytes: [0x90, 60, 90], delayMs: 0)
+            let off = bridge.send(to: destination.id, bytes: [0x80, 60, 0], delayMs: 400)
+            Meting.shared.sentOut(ok: on && off)
+        }
     }
 
     func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
@@ -121,6 +143,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         pageWantsMidi = false   // nieuwe pagina: wacht tot die zelf om MIDI vraagt
+        bridge.stopAll()        // wat de vorige pagina nog had ingepland, speelt niet meer
         wakeLocks = []          // en de locks van de vorige pagina gelden niet meer
         Meting.shared.pageReloaded()
         offline.removeFromSuperview()
@@ -165,6 +188,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         wakeLocks = []
+        bridge.stopAll()
         webView.reload()
     }
 
