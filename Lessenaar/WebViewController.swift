@@ -72,7 +72,15 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             let age = String(format: "%.2f", Meting.ageMs(hostTime))
             self.call("packet", "\(id),[\(bytes.map(String.init).joined(separator: ","))],\(self.seq),\(age)")
         }
+        // Naar de achtergrond: alle locks los, ook als het "uit"-bericht van de pagina niet meer aankomt.
+        // Lessenaar vraagt bij terugkomst zelf een nieuwe lock (visibilitychange).
+        NotificationCenter.default.addObserver(self, selector: #selector(didEnterBackground),
+                                               name: UIApplication.didEnterBackgroundNotification, object: nil)
         webView.load(URLRequest(url: Self.startURL))
+    }
+
+    @objc private func didEnterBackground() {
+        wakeLocks = []
     }
 
     private func call(_ function: String, _ arguments: String) {
