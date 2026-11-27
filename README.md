@@ -14,12 +14,16 @@ Tot het omzetten na 1 dec (#183) staat in de app nog het lees-token, dus Sync, M
   `lessenaar.html` blijft ongewijzigd.
 - Is er een instrument aangesloten (USB of Bluetooth), dan geeft de brug alleen dat door. De netwerksessie van iOS en
   virtuele poorten van andere apps (zoals `MIDIWeb Out`) alleen als er niets anders is.
+- **MIDI-uit:** de bestemmingen staan als `MIDIAccess.outputs` in de pagina, met dezelfde voorkeur (een echt instrument
+  gaat voor). `output.send(data, timestamp)` en `output.clear()` werken zoals Web MIDI in een browser: `timestamp` in de
+  tijd van `performance.now()`, leeg of voorbij is meteen; de brug plant het in met de tijdstempel van CoreMIDI. Sysex
+  staat uit. Gaat de pagina weg of de app naar de achtergrond, dan stopt wat nog ingepland stond en gaan alle noten uit.
 - **Scherm aan:** `Lessenaar/Resources/wake-lock.js` vervangt `navigator.wakeLock`. Vraagt de pagina een lock (bij het
   openen van de lezer), dan zet de app `isIdleTimerDisabled`; bij loslaten, sluiten van de lezer of naar de achtergrond
   weer uit. Zo werkt het op elke iOS-versie, ook waar de wake lock van WKWebView het scherm niet aan houdt.
 - Meetscherm: **houd drie vingers ongeveer een seconde op het scherm**. Het toont de vertraging van het MIDI-pakket in
-  iOS tot de app de noot heeft verwerkt (mediaan, p95, max), hoeveel pakketten er gemist zijn, de bronnen, en of het
-  scherm nu aan blijft.
+  iOS tot de app de noot heeft verwerkt (mediaan, p95, max), hoeveel pakketten er gemist zijn, de bronnen, de
+  bestemmingen (MIDI-uit), en of het scherm nu aan blijft. De knop **Testnoot** speelt de middelste C kort op elke bestemming.
 - Geen service worker en geen offline start. Zonder wifi zie je "Lessenaar laadt niet" en een knop Opnieuw.
 - Alleen iPad (`TARGETED_DEVICE_FAMILY` 2): op de iPhone zou de polyfill de alleen-lezen-guard van Lessenaar omzeilen.
 
@@ -27,7 +31,8 @@ Tot het omzetten na 1 dec (#183) staat in de app nog het lees-token, dus Sync, M
 
 Er is geen Mac nodig. `.github/workflows/ios.yml`:
 
-1. `polyfill` (Linux): `node --test tests/*.test.mjs`, tegen de gepubliceerde site (het MIDI-blok en `requestWakeLock`).
+1. `polyfill` (Linux): `node --test tests/*.test.mjs`, tegen de gepubliceerde site (het MIDI-blok en `requestWakeLock`),
+   plus MIDI-uit (`tests/midi-uit.test.mjs`).
 2. `build` (macOS): `xcodegen generate` en een simulatorbuild zonder ondertekenen. Draait bij elke PR.
 3. `testflight` (macOS): bij elke merge naar `main`, met de hand, en **elke 1e van de maand** (TestFlight-builds
    verlopen na 90 dagen). Registreert de bundle-id, archiveert met automatisch ondertekenen via de App Store
