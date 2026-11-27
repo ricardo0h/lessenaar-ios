@@ -24,12 +24,21 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     }
     private lazy var offline = makeOfflineView()
 
+    /// Kenmerk achter de user agent: `Lessenaar-iOS/<versie> (iPhone)` of `(iPad)`. De webapp leest dit precies zo
+    /// (#127, ADR-8): de iPhone is een tweede apparaat dat alleen sessies toevoegt. Op de iPad zegt de standaard-UA van
+    /// WKWebView "Macintosh", dus het apparaat staat er expliciet in. Niet veranderen zonder de webkant (tests/useragent.test.mjs).
+    static func userAgentMark() -> String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        let device = UIDevice.current.userInterfaceIdiom == .phone ? "iPhone" : "iPad"
+        return "Lessenaar-iOS/" + version + " (" + device + ")"
+    }
+
     override func loadView() {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()   // blijvende opslag (IndexedDB) per app
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
-        config.applicationNameForUserAgent = "Lessenaar-iOS/" + (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0")
+        config.applicationNameForUserAgent = Self.userAgentMark()
         let content = WKUserContentController()
         content.add(WeakHandler(self), name: "lessenaarMidi")
         content.add(WeakHandler(self), name: "lessenaarWake")
@@ -56,7 +65,21 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         press.cancelsTouchesInView = false
         press.delegate = self
         webView.addGestureRecognizer(press)
-        view = webView
+
+        // Boven en onder loopt de pagina door tot de rand (de pagina regelt die safe area zelf). Links en rechts houdt de
+        // schil de safe area vrij: op een iPhone met notch of Dynamic Island in liggende stand valt de pagina daar anders
+        // onder. Op de iPad is die rand 0, daar verandert niets.
+        let container = UIView()
+        container.backgroundColor = webView.backgroundColor
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(webView)
+        NSLayoutConstraint.activate([
+            webView.topAnchor.constraint(equalTo: container.topAnchor),
+            webView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            webView.leadingAnchor.constraint(equalTo: container.safeAreaLayoutGuide.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: container.safeAreaLayoutGuide.trailingAnchor),
+        ])
+        view = container
     }
 
     override func viewDidLoad() {
@@ -221,7 +244,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         NSLayoutConstraint.activate([
             stack.centerXAnchor.constraint(equalTo: box.centerXAnchor),
             stack.centerYAnchor.constraint(equalTo: box.centerYAnchor),
-            stack.widthAnchor.constraint(lessThanOrEqualTo: box.widthAnchor, constant: -48),
+            stack.widthAnchor.constraint(lessThanOrEqualTo: box.safeAreaLayoutGuide.widthAnchor, constant: -48),
         ])
         return box
     }

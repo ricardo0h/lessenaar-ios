@@ -117,13 +117,14 @@ final class Meting: ObservableObject {
         return sorted[min(sorted.count - 1, Int((Double(sorted.count - 1) * p).rounded()))]
     }
 
-    var summary: String {
+    @MainActor var summary: String {   // leest UIDevice via userAgentMark()
         let ms: (Double?) -> String = { $0.map { String(format: "%.1f ms", $0) } ?? "–" }
         let minutes = Int(Date().timeIntervalSince(since) / 60)
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         return """
         Lessenaar iOS-schil \(version) (\(build))
+        Kenmerk: \(WebViewController.userAgentMark())
         Meting sinds \(minutes) min
         Aanslagen in iOS: \(notesIOS)
         Aanslagen in de app: \(notesApp)
