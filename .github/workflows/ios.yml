@@ -5,6 +5,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # TestFlight-builds verlopen na 90 dagen. Elke maand een verse build, zodat er altijd een is van hooguit ±31 dagen oud
+  # (ook als er een keer een mislukt). Alleen op main. Let op: GitHub zet een geplande workflow in een publieke repo uit
+  # na 60 dagen zonder commits; dan komt er een mail en is hij met één klik weer aan (Actions → iOS → Enable workflow).
+  schedule:
+    - cron: '17 4 1 * *'
 
 concurrency:
   group: ios-${{ github.ref }}

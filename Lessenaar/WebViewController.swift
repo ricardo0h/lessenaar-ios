@@ -14,6 +14,14 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     private var seq = 0
     private var pageWantsMidi = false
     private var downloadURLs: [ObjectIdentifier: URL] = [:]
+    /// Wake locks die de pagina vasthoudt (wake-lock.js); zolang er één is, gaat het scherm niet uit.
+    private var wakeLocks: Set<Int> = [] {
+        didSet {
+            let on = !wakeLocks.isEmpty
+            UIApplication.shared.isIdleTimerDisabled = on
+            Meting.shared.screenOn = on
+        }
+    }
     private lazy var offline = makeOfflineView()
 
     override func loadView() {
@@ -24,9 +32,12 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         config.applicationNameForUserAgent = "Lessenaar-iOS/" + (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0")
         let content = WKUserContentController()
         content.add(WeakHandler(self), name: "lessenaarMidi")
-        if let url = Bundle.main.url(forResource: "midi-polyfill", withExtension: "js"),
-           let source = try? String(contentsOf: url, encoding: .utf8) {
-            content.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        content.add(WeakHandler(self), name: "lessenaarWake")
+        for script in ["midi-polyfill", "wake-lock"] {
+            if let url = Bundle.main.url(forResource: script, withExtension: "js"),
+               let source = try? String(contentsOf: url, encoding: .utf8) {
+                content.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+            }
         }
         config.userContentController = content
 
@@ -75,6 +86,9 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     fileprivate func received(_ message: WKScriptMessage) {
         guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
         switch type {
+        case "wake":
+            guard let id = body["id"] as? Int else { return }
+            if body["on"] as? Bool == true { wakeLocks.insert(id) } else { wakeLocks.remove(id) }
         case "request":
             pageWantsMidi = true
             bridge.start()
@@ -99,6 +113,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         pageWantsMidi = false   // nieuwe pagina: wacht tot die zelf om MIDI vraagt
+        wakeLocks = []          // en de locks van de vorige pagina gelden niet meer
         Meting.shared.pageReloaded()
         offline.removeFromSuperview()
     }
@@ -141,6 +156,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        wakeLocks = []
         webView.reload()
     }
 

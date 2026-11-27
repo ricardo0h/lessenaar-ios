@@ -12,6 +12,7 @@ final class Meting: ObservableObject {
     @Published private(set) var notesApp = 0                // aanslagen die de app volgens de polyfill kreeg
     @Published private(set) var late = 0                    // aanslagen zonder antwoord binnen 2 s
     @Published var sources: [MIDISource] = []
+    @Published var screenOn = false                         // de pagina houdt een wake lock vast (scherm blijft aan)
     private(set) var since = Date()
     private var pending: [Int: (hostTime: UInt64, notes: Int)] = [:]
     private var running: [Int32: UInt8] = [:]
@@ -123,6 +124,7 @@ final class Meting: ObservableObject {
         Vertraging p95: \(ms(percentile(0.95)))
         Vertraging max: \(ms(latencies.max()))
         Bronnen: \(sources.isEmpty ? "geen" : sources.map(\.name).joined(separator: ", "))
+        Scherm blijft aan: \(screenOn ? "ja" : "nee")
         """
     }
 }
