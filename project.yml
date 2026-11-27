@@ -27,6 +27,11 @@ targets:
         UIStatusBarStyle: UIStatusBarStyleLightContent
         NSCameraUsageDescription: Voor een foto bij een melding of bij een les.
         NSMicrophoneUsageDescription: Voor een video bij een melding of bij een les.
+        # iPhone (#127): staand en liggend; ondersteboven niet (iPhones met een notch kennen dat niet).
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -35,7 +40,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.ricardo0h.lessenaar
-        TARGETED_DEVICE_FAMILY: "2"   # alleen iPad: op de iPhone zou de polyfill de alleen-lezen-guard (#111) omzeilen
+        # iPhone en iPad. De iPhone is een tweede apparaat dat alleen sessies toevoegt (ADR-8, #127); de webapp herkent hem
+        # aan het kenmerk `Lessenaar-iOS/<versie> (iPhone)` in de user agent (WebViewController.userAgentMark).
+        TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: false

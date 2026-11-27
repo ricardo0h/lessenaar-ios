@@ -1,6 +1,6 @@
 # lessenaar-ios
 
-Lessenaar als iOS-app voor de iPad (via TestFlight), met MIDI via CoreMIDI. Deze app vervangt MIDIWeb Browser als de
+Lessenaar als iOS-app voor de iPad en de iPhone (via TestFlight), met MIDI via CoreMIDI. Deze app vervangt MIDIWeb Browser als de
 plek waar Lessenaar draait. Besluit en overstap: issue #183 in de (privé) repo `piano-practice-tracker`.
 
 Tot het omzetten na 1 dec (#183) staat in de app nog het lees-token, dus Sync, Melden en Afronden schrijven nog niet naar de data-repo.
@@ -25,14 +25,23 @@ Tot het omzetten na 1 dec (#183) staat in de app nog het lees-token, dus Sync, M
   iOS tot de app de noot heeft verwerkt (mediaan, p95, max), hoeveel pakketten er gemist zijn, de bronnen, de
   bestemmingen (MIDI-uit), en of het scherm nu aan blijft. De knop **Testnoot** speelt de middelste C kort op elke bestemming.
 - Geen service worker en geen offline start. Zonder wifi zie je "Lessenaar laadt niet" en een knop Opnieuw.
-- Alleen iPad (`TARGETED_DEVICE_FAMILY` 2): op de iPhone zou de polyfill de alleen-lezen-guard van Lessenaar omzeilen.
+- **iPad en iPhone** (`TARGETED_DEVICE_FAMILY` 1,2). De iPad is het thuis van de data; de iPhone is een tweede apparaat
+  dat alleen sessies en meldingen toevoegt (ADR-8, #127 in `piano-practice-tracker`). Dat regelt de webapp, niet de schil.
+- **Kenmerk in de user agent:** de schil zet `Lessenaar-iOS/<versie> (iPhone)` of `Lessenaar-iOS/<versie> (iPad)` achter
+  de user agent (`WebViewController.userAgentMark`, versie = `CFBundleShortVersionString`). Op de iPad is de rest van de
+  UA die van desktop-Safari ("Macintosh"), dus het apparaat staat er expliciet in. De webapp leest dit kenmerk om de
+  iPhone als tweede apparaat te behandelen; `tests/useragent.test.mjs` bewaakt het formaat en draait de UA-functies van
+  de live site ertegen. Niet veranderen zonder de webkant.
+- **iPhone-scherm:** staand en liggend (niet ondersteboven). Boven en onder loopt de pagina door tot de rand en regelt
+  ze de safe area zelf (`viewport-fit=cover`); links en rechts houdt de schil de safe area vrij, zodat de notch of het
+  Dynamic Island in liggende stand niet over de pagina valt. Het meetscherm (drie vingers) werkt ook op de iPhone.
 
 ## Bouwen
 
 Er is geen Mac nodig. `.github/workflows/ios.yml`:
 
-1. `polyfill` (Linux): `node --test tests/*.test.mjs`, tegen de gepubliceerde site (het MIDI-blok en `requestWakeLock`),
-   plus MIDI-uit (`tests/midi-uit.test.mjs`).
+1. `polyfill` (Linux): `node --test tests/*.test.mjs`, tegen de gepubliceerde site (het MIDI-blok, `requestWakeLock` en
+   de UA-functies), plus MIDI-uit (`tests/midi-uit.test.mjs`) en het kenmerk in de user agent (`tests/useragent.test.mjs`).
 2. `build` (macOS): `xcodegen generate` en een simulatorbuild zonder ondertekenen. Draait bij elke PR.
 3. `testflight` (macOS): bij elke merge naar `main`, met de hand, en **elke 1e van de maand** (TestFlight-builds
    verlopen na 90 dagen). Registreert de bundle-id, archiveert met automatisch ondertekenen via de App Store

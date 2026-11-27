@@ -124,6 +124,7 @@ final class Meting: ObservableObject {
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         return """
         Lessenaar iOS-schil \(version) (\(build))
+        Kenmerk: \(WebViewController.userAgentMark())
         Meting sinds \(minutes) min
         Aanslagen in iOS: \(notesIOS)
         Aanslagen in de app: \(notesApp)

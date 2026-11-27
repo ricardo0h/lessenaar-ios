@@ -9,6 +9,8 @@ werkwijze staan in de `CLAUDE.md` van die repo en gelden hier ook (Nederlands, b
   draait dat blok van de live site tegen de polyfill. Verandert `midiIn`, dan faalt deze test in de CI hier.
 - MIDI-uit: `MIDIAccess.outputs` met `send(data, timestamp)` en `clear()` volgens de Web MIDI-spec (`tests/midi-uit.test.mjs`);
   native: bestemmingen in `MIDIBridge.swift`, berichten `send`/`clear` van de pagina.
+- Kenmerk in de user agent: `Lessenaar-iOS/<versie> (iPhone)` of `(iPad)` (`userAgentMark`); de webapp leest dat precies zo
+  (#127). `tests/useragent.test.mjs` bewaakt het.
 - Scherm aan: `wake-lock.js` vervangt `navigator.wakeLock` en native zet `isIdleTimerDisabled`; `tests/wakelock.test.mjs`
   draait `requestWakeLock` van de live site ertegen.
 - `testflight` draait ook elke 1e van de maand (builds verlopen na 90 dagen).
