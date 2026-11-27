@@ -49,8 +49,9 @@ function swiftMark(idiom, version) {
   }).join('');
 }
 // Zo zet WKWebView applicationNameForUserAgent achter de standaard-UA (iPhone: mobiel; iPad: desktop-modus, "Macintosh").
+// applicationNameForUserAgent vervangt de standaardnaam (`Mobile/15E148` op de iPhone), dus die staat er niet meer in.
 const UA = {
-  phone: m => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 ' + m,
+  phone: m => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) ' + m,
   pad: m => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) ' + m,
 };
 

@@ -244,7 +244,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         NSLayoutConstraint.activate([
             stack.centerXAnchor.constraint(equalTo: box.centerXAnchor),
             stack.centerYAnchor.constraint(equalTo: box.centerYAnchor),
-            stack.widthAnchor.constraint(lessThanOrEqualTo: box.widthAnchor, constant: -48),
+            stack.widthAnchor.constraint(lessThanOrEqualTo: box.safeAreaLayoutGuide.widthAnchor, constant: -48),
         ])
         return box
     }
